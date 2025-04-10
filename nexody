@@ -6,12 +6,12 @@ CLIENT_SECRET="0d52f2e6c353459aa994c11f08bfee1c"
 PLAYLIST_ID="40Mx3bOxoddtOzRBZSf2Qf"
 OUTPUT_FILE="playlist_tracks.csv"
 
-# Get access token
+# Get Spotify access token
 ACCESS_TOKEN=$(./curl -s -X POST https://accounts.spotify.com/api/token \
   -d grant_type=client_credentials \
   -u "$CLIENT_ID:$CLIENT_SECRET" | ./jq -r '.access_token // empty')
 
-# First, fetch all tracks from the playlist
+# First, fetch all tracks from the Spotify playlist
 TRACKS_JSON=$(./curl -s -X GET "https://api.spotify.com/v1/playlists/$PLAYLIST_ID/tracks" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
