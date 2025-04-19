@@ -1,35 +1,43 @@
 #!/bin/bash
 
-# Ensure correct encoding during file processing
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
+args=("$@")
 
-# Replace with your own Client ID and Client Secret
-CLIENT_ID="c9d3a82d76744885b8e219f466e60370"
-CLIENT_SECRET="0d52f2e6c353459aa994c11f08bfee1c"
-PLAYLIST_ID="40Mx3bOxoddtOzRBZSf2Qf"
-OUTPUT_FILE="playlist_tracks.csv"
+# Source the function library
+source ./functions.sh
+
+# Parse config file
+parse_config "nexody.cfg"
+
+OUTPUT_FILE="tracks.csv"
+
+echo -e "\e[38;2;255;0;255m   _      ____  _     ___   ___   _"
+echo -e "\e[38;2;255;0;255m  | |\ | | |_  \ \_/ / / \ | | \ \ \_/"
+echo -e "\e[38;2;255;0;255m  |_| \| |_|__ /_/ \ \_\_/ |_|_/  |_|   v1"
+echo -e "\e[0m"
+
+gradient_loader "Fetching tracks from Spotify playlist." &
+loader_pid=$!
 
 # Get access token
 ACCESS_TOKEN=$(./curl -s -X POST https://accounts.spotify.com/api/token \
   -d grant_type=client_credentials \
-  -u "$CLIENT_ID:$CLIENT_SECRET" | ./jq -r '.access_token // empty')
+  -u "$SPOTIFY_ID:$SPOTIFY_SECRET" | ./jq -r '.access_token // empty')
 
-# First, fetch all tracks from the playlist
+# First, fetch all tracks from the playlist.
 TRACKS_JSON=$(./curl -s -X GET "https://api.spotify.com/v1/playlists/$PLAYLIST_ID/tracks" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
-# Extract all unique artist IDs
+# Extract all unique artist IDs.
 ARTIST_IDS=$(echo "$TRACKS_JSON" | ./jq -r '.items[].track.artists[].id' | sort | uniq | tr '\n' ',' | sed 's/,$//')
 
-# Fetch all artist details in one batch request
+# Fetch all artist details in one batch request.
 ARTISTS_DATA=$(./curl -s -X GET "https://api.spotify.com/v1/artists?ids=$ARTIST_IDS" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
-# Create CSV file with header
+# Create CSV file with header.
 echo "title,artist,artists,album,date,track,genres,length,albumart,id" > "$OUTPUT_FILE"
 
-# Process the tracks and append to CSV
+# Process the tracks and append them to the CSV.
 echo "$TRACKS_JSON" | ./jq -r --argjson artists "$ARTISTS_DATA" '
   .items[] | 
   [
@@ -50,83 +58,224 @@ echo "$TRACKS_JSON" | ./jq -r --argjson artists "$ARTISTS_DATA" '
     (.track.id // "")
   ] | @csv' >> "$OUTPUT_FILE"
 
-# Write the header to the temp file
+c1=0
+c2=0
+c3=0
+
+# Write the header to the temp file.
 head -n 1 "$OUTPUT_FILE" > "$OUTPUT_FILE.temp"
 
-# Process the rest
-tail -n +2 "$OUTPUT_FILE" | while IFS= read -r line; do
-    # Parse CSV line with awk and return sanitized filename
-    filename=$(echo "$line" | awk -F '","' '
-    function sanitize(str) {
-        gsub(/[\\/*?"<>|:]/, "", str)
-        gsub(/  +/, " ", str)
-        gsub(/^[ \t]+|[ \t]+$/, "", str)
-        return str
-    }
-    {
-        gsub(/^"/, "", $1)
-        gsub(/"$/, "", $10)
-        artist = sanitize($2)
-        title = sanitize($1)
-        print artist " - " title
-    }')
-
-    # Look for file in directory
-    echo ---- looking for file
-	if find "playlist_tracks" -type f -iname "$filename"* | grep -q .; then
-        echo "Found match for: $filename — skipping"
-    else
-        echo "$line" >> "$OUTPUT_FILE.temp"
-    fi
-done
-
-# Replace original file
-mv "$OUTPUT_FILE.temp" "$OUTPUT_FILE"
-
-
-./sldl "$OUTPUT_FILE" --user dzk --pass dzk --no-write-index --concurrent-downloads 8 --name-format "playlist_tracks\{uri}" --format mp3 --search-timeout 6000
-
-# Function to sanitize variable
-sanitize() {
-  echo "$1" | sed 's/^"\|"$//g' | sed 's/[\\/*?"<>|:]//g' | sed 's/  */ /g' | sed 's/^ *//;s/ *$//'
-}
-
-tail -n +2 "$OUTPUT_FILE" | awk -F '","' '
-function sanitize(str) {
-    gsub(/[\\/*?"<>|:]/, "", str)  # Remove unwanted characters
-    gsub(/  +/, " ", str)          # Replace multiple spaces with a single space
-    gsub(/^[ \t]+|[ \t]+$/, "", str)  # Trim leading and trailing spaces
-    return str
-}
-{
-    # Remove leading and trailing quotes from fields
-    gsub(/^"/, "", $1)
-    gsub(/"$/, "", $10)
+# Process substitution avoids subshell for the while loop
+while IFS=$'\x01' read -r title artist artists album date track genres length albumart id; do
+	((c1++))
+	
+	title="${title#\"}"
+    id="${id%\"}"
 
     # Sanitize artist and title
-    sanitized_artist = sanitize($2)
-    sanitized_title = sanitize($1)
+    sanitized_artist=$(sanitize "$artist")
+    sanitized_title=$(sanitize "$title")
 
-    # Create sanitized filename
-    filename = sanitized_artist " - " sanitized_title
+    filename="${sanitized_artist} - ${sanitized_title}"
 
-    # Download album art
-    system("./curl -o art.jpg \"" $9 "\"")
+    # Check if the track is already in the library
+    if find "$LIBRARY_PATH" -type f -iname "${filename}*" -print -quit | grep -q .; then
+        # echo "$filename Already in library, skipping."
+        ((c2++))
+    else
+        # Save the final output
+        echo "\"$title\",\"$artist\",\"$artists\",\"$album\",\"$date\",\"$track\",\"$genres\",\"$length\",\"$albumart\",\"$id\"" >> "$OUTPUT_FILE.temp"
+    fi
+done < <(sed 's/","/\x01/g' "$OUTPUT_FILE" | tail -n +2)  # sed runs here, but in a subshell (safe)
 
-	system("ls -l art.jpg")
-	
-	# Run ffmpeg to update metadata
-	system("./ffmpeg -i \"playlist_tracks/" $10 ".mp3\" -i art.jpg -map 0 -map 1 -c copy -c:v mjpeg -disposition:v attached_pic -id3v2_version 3 " \
-		   "-metadata:s:v title=\"Album cover\" -metadata:s:v comment=\"Cover\" -metadata:s:v comment=\"Cover (front)\" " \
-		   "-metadata title=\"" $1 "\" -metadata album_artist=\"" $2 "\" " \
-		   "-metadata artist=\"" $3 "\" -metadata album=\"" $4 "\" " \
-		   "-metadata date=\"" $5 "\" -metadata track=\"" $6 "\" " \
-		   "-metadata genre=\"" $7 "\" " \
-		   "-write_id3v1 1 \"playlist_tracks/" filename ".mp3\" > /dev/null 2>&1")
+# Replace original CSV with temporary CSV.
+mv "$OUTPUT_FILE.temp" "$OUTPUT_FILE"
 
-    # Remove original MP3 file
-    system("rm \"playlist_tracks/" $10 ".mp3\"")
+kill "$loader_pid" >/dev/null 2>&1
+wait "$loader_pid" 2>/dev/null
+echo -e "\r[\e[38;2;255;0;255mDone!\e[0m] $(tput setaf 8)Fetching tracks from Spotify playlist.$(tput sgr0)"
 
-    # Remove art.jpg
-    system("rm art.jpg")
-}'
+echo "	$(tput setaf 8)$c2/$c1 Tracks already in library.$(tput sgr0)"
+echo ""
+
+# Write the header to the temp file.
+head -n 1 "$OUTPUT_FILE" > "$OUTPUT_FILE.temp"
+
+if [ "$(($c1 - $c2))" -gt 0 ]; then
+	# Process substitution avoids subshell for the while loop
+	while IFS=$'\x01' read -r title artist artists album date track genres length albumart id; do
+			
+		# If $genres is empty, fetch the genres using get-genres.sh
+		if [ -z "$genres" ]; then
+			((c3++))
+		fi
+	done < <(sed 's/","/\x01/g' "$OUTPUT_FILE" | tail -n +2)  # sed runs here, but in a subshell (safe)
+
+	gradient_loader "Fetching genres for $c3/$(($c1 - $c2)) tracks using fallbacks." &
+	loader_pid=$!
+
+	# Replace occurrences of '","' with '\x01' before processing the file
+	sed 's/","/\x01/g' "$OUTPUT_FILE" | tail -n +2 | while IFS=$'\x01' read -r title artist artists album date track genres length albumart id; do
+
+		title="${title#\"}"
+		id="${id%\"}"
+
+		# Sanitize artist and title
+		sanitized_artist=$(sanitize "$artist")
+		sanitized_title=$(sanitize "$title")
+
+		filename="${sanitized_artist} - ${sanitized_title}"
+	  
+		# If $genres is empty, fetch the genres using get-genres.sh
+		if [ -z "$genres" ]; then
+			# echo "Genres missing for $artist - $title. Using fallback."
+			genres=$(./get-genres.sh "$artist" "$title" -s)
+
+			if [ -n "$genres" ]; then
+				# echo -e "\033[0;32mSuccess\033[0m"
+				genres="$genres"
+			fi
+		fi
+
+		# Save the final output
+		echo "\"$title\",\"$artist\",\"$artists\",\"$album\",\"$date\",\"$track\",\"$genres\",\"$length\",\"$albumart\",\"$id\"" >> "$OUTPUT_FILE.temp"
+	done
+
+	# Replace original CSV with temporary CSV.
+	mv "$OUTPUT_FILE.temp" "$OUTPUT_FILE"
+
+	kill "$loader_pid" >/dev/null 2>&1
+	wait "$loader_pid" 2>/dev/null
+	echo -e "\r[\e[38;2;255;0;255mDone!\e[0m] $(tput setaf 8)Fetching genres for $c3/$(($c1 - $c2)) tracks using fallbacks.$(tput sgr0)"
+	echo "	$(tput setaf 8)Genres fetched.$(tput sgr0)"
+	echo ""
+fi
+
+if [ "$(($c1 - $c2))" -gt 0 ]; then
+	gradient_loader "Downloading $(($c1 - $c2)) tracks from SoulSeek." &
+	loader_pid=$!
+
+	# Use SLDL to download tracks from the CSV and name them with the ID's.
+	./sldl "$OUTPUT_FILE" --user dzk --pass dzk --no-write-index --concurrent-downloads 8 --name-format "$LIBRARY_PATH\{uri}" --format mp3 --search-timeout 1000 &> /dev/null
+
+	kill "$loader_pid" >/dev/null 2>&1
+	wait "$loader_pid" 2>/dev/null
+	echo -e "\r[\e[38;2;255;0;255mDone!\e[0m] $(tput setaf 8)Downloading $(($c1 - $c2)) tracks from SoulSeek.$(tput sgr0)"
+
+	c1=0
+	c2=0
+
+	# Process substitution avoids subshell for the while loop
+	while IFS=$'\x01' read -r title artist artists album date track genres length albumart id; do
+		((c1++))
+		id="${id%\"}"
+		
+		# Check if the track is already in the library
+		if find "$LIBRARY_PATH" -type f -iname "${id}*" -print -quit | grep -q .; then
+			((c2++))
+		fi
+	done < <(sed 's/","/\x01/g' "$OUTPUT_FILE" | tail -n +2)  # sed runs here, but in a subshell (safe)
+
+	echo "	$(tput setaf 8)$c2/$c1 Tracks downloaded.$(tput sgr0)"
+	echo ""
+fi
+
+if [ "$(($c1 - $c2))" -gt 0 ]; then
+	gradient_loader "Downloading $(($c1 - $c2)) tracks from YouTube." &
+	loader_pid=$!	
+
+	# Replace occurrences of '","' with '\x01' and process the file
+	sed 's/","/\x01/g' "$OUTPUT_FILE" | tail -n +2 | while IFS=$'\x01' read -r title artist artists album date track genres length albumart id; do
+
+		# Remove starting and ending quotes
+		title="${title#\"}"
+		id="${id%\"}"
+
+		# Sanitize artist and title
+		sanitized_artist=$(sanitize "$artist")
+		sanitized_title=$(sanitize "$title")
+
+		# Check if track already exists in library
+		if ! find "$LIBRARY_PATH" -type f -iname "*${id}*" -print -quit | grep -q .; then
+			
+			# Download using yt-dlp
+			./yt-dlp "ytsearch1:${artist} ${title}" -x --audio-format best --audio-quality 0 \
+				-o "${LIBRARY_PATH}/${id}.webm" > /dev/null 2>&1	
+		fi
+	done
+
+	kill "$loader_pid" >/dev/null 2>&1
+	wait "$loader_pid" 2>/dev/null
+	echo -e "\r[\e[38;2;255;0;255mDone!\e[0m] $(tput setaf 8)Downloading $(($c1 - $c2)) tracks from YouTube.$(tput sgr0)"	
+	echo "	$(tput setaf 8)$(($c1 - $c2))/$(($c1 - $c2)) Tracks downloaded.$(tput sgr0)"
+	echo ""
+fi
+
+# Replace '","' with \x01, skip header, and process each line
+sed 's/","/\x01/g' "$OUTPUT_FILE" | tail -n +2 | while IFS=$'\x01' read -r title artist artists album date track genres length albumart id; do
+    # Trim quotes
+    title="${title#\"}"
+    id="${id%\"}"
+
+    sanitized_artist=$(sanitize "$artist")
+    sanitized_title=$(sanitize "$title")
+    filename="${sanitized_artist} - ${sanitized_title}"
+
+    # echo "Downloading cover art: $albumart"
+    ./curl -s -o art.jpg "$albumart"
+
+	gradient_loader "Encoding: $artist - $title" &
+	loader_pid=$!
+
+    declare -A inputs=(
+        ["$LIBRARY_PATH/$id.flac"]="$LIBRARY_PATH/$filename.flac"
+        ["$LIBRARY_PATH/$id.mp3"]="$LIBRARY_PATH/$filename.m4a"
+        ["$LIBRARY_PATH/$id.webm"]="$LIBRARY_PATH/$filename.mp3"
+    )
+
+    for infile in "${!inputs[@]}"; do
+        outfile="${inputs[$infile]}"
+
+        [[ ! -f "$infile" ]] && continue
+
+        # Choose codec based on input type
+        case "$infile" in
+            *.flac)
+                audio_codec=(-c:a flac -compression_level 5)
+                ;;
+            *.mp3)
+                audio_codec=(-b:a 320k -c:a libfdk_aac -movflags +faststart)
+                ;;
+            *.webm)
+                audio_codec=(-b:a 320k -c:a libmp3lame)
+                ;;
+        esac
+
+        ./ffmpeg -nostdin -loglevel error -y -i "$infile" -i art.jpg \
+            -map 0:a -map 1:v \
+            "${audio_codec[@]}" \
+            -c:v mjpeg \
+            -disposition:v attached_pic \
+            -metadata:s:v title="Album cover" \
+            -metadata:s:v comment="Cover (front)" \
+            -metadata title="$title" \
+            -metadata album_artist="$artist" \
+            -metadata artist="$artists" \
+            -metadata album="$album" \
+            -metadata date="$date" \
+            -metadata track="$track" \
+            -metadata genre="$genres" \
+            -id3v2_version 3 \
+            -write_id3v1 1 \
+            "$outfile" 2>/dev/null
+
+        rm "$infile"
+    done
+
+    rm -f art.jpg
+
+	kill "$loader_pid" >/dev/null 2>&1
+	wait "$loader_pid" 2>/dev/null
+	echo -e "\r[\e[38;2;255;0;255mDone!\e[0m] $(tput setaf 8)Encoding: $artist - $title$(tput sgr0)"
+done
+echo ""

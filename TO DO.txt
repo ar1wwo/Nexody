@@ -1,0 +1,16 @@
+-Remove unsused files (csv, art, etc)
+-Propper comments
+-Organize files into folders (binaries, libraries, etc)
+-System for redownloading low quality tracks (mp3, m4a)
+-Sanity check to ensure all metadata is present
+-Batch processing (40 tracks max for spotify?)
+-Ensure reliability of genres fallbacks (musicbrainz, deezer, itunes, gemini?)
+-Recompilation of ffmpeg with only needed codecs (flac, libfdk_aac, libmp3lame, mjpeg)
+-Ensure encoding with streaming functionality
+-Arguments handling for silent operation or debug
+-Sldl and yt-dlp configuration through cfg file
+-Code simplification (functions, etc)
+-Error Handling
+-Logging
+-Parallel Processing (ffmpeg, etc)
+-More?
