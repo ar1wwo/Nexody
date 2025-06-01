@@ -10,6 +10,7 @@ Relies on Spotify, ITunes and MusicBrainz for tag searching and autotagging.
 <br>
 <ins>Configuration File:</ins>
 <br>
+<br>
 The Name of the Folder Where the Songs Will be Saved
 
 >LIBRARY_PATH = Library
@@ -31,6 +32,7 @@ SoulSeek User and Password
 >SOULSEEK_PASSWORD = dzk
 
 
+<br>
 <br>
 This program is made possible thanks to these open source projects: [Sldl](https://github.com/fiso64/slsk-batchdl), [Yt-dlp](https://github.com/yt-dlp), [Ffmpeg](https://github.com/FFmpeg/FFmpeg).
 
