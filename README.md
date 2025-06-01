@@ -34,9 +34,9 @@ SoulSeek User and Password
 <br>
 <br>
 
-This program is made possible thanks to these open source projects: [Sldl](https://github.com/fiso64/slsk-batchdl), [Yt-dlp](https://github.com/yt-dlp), [Ffmpeg](https://github.com/FFmpeg/FFmpeg).
+Nedoxy is made possible thanks to these open source projects: [Sldl](https://github.com/fiso64/slsk-batchdl), [Yt-dlp](https://github.com/yt-dlp), [Ffmpeg](https://github.com/FFmpeg/FFmpeg).
 
 ### Binaries of Ffmpeg, Sldl and Yt-dlp are required and must be in the same folder as Nexody.<br>
 ### Ffmpeg must be compiled with the following libraries: libfdk_aac, libmp3lame.
 
-To run, give the script permission and type ./Nexody in bash
+To run, give the scripts permission and type ./Nexody in bash
