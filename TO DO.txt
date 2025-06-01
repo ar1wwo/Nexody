@@ -1,4 +1,5 @@
 -Remove unsused files (csv, art, etc)
+-Automatically download dependencies
 -Propper comments
 -Organize files into folders (binaries, libraries, etc)
 -System for redownloading low quality tracks (mp3, m4a)
@@ -10,7 +11,7 @@
 -Arguments handling for silent operation or debug
 -Sldl and yt-dlp configuration through cfg file
 -Code simplification (functions, etc)
--Error Handling
+-Error handling
 -Logging
--Parallel Processing (ffmpeg, etc)
+-Parallel processing (ffmpeg, etc)
 -More?
