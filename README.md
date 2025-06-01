@@ -31,9 +31,9 @@ SoulSeek User and Password
 
 >SOULSEEK_PASSWORD = 
 
+<br>
+<br>
 
-<br>
-<br>
 This program is made possible thanks to these open source projects: [Sldl](https://github.com/fiso64/slsk-batchdl), [Yt-dlp](https://github.com/yt-dlp), [Ffmpeg](https://github.com/FFmpeg/FFmpeg).
 
 ### Binaries of Ffmpeg, Sldl and Yt-dlp are required and must be in the same folder as Nexody.<br>
