@@ -9,7 +9,7 @@ Relies on Spotify, ITunes and MusicBrainz for tag searching and autotagging.
 <br>
 ### Configuration File Contains Several Variables that need to be modified in order to run the script properly.
 <br>
-<ins>Configuration File:</ins>
+<ins>Configuration File (nexody.cfg):</ins>
 <br>
 <br>
 The Name of the Folder Where the Songs Will be Saved
