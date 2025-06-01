@@ -5,7 +5,8 @@ It automatically tags and downloads tracks and provides a fallback for tracks th
 
 Relies on SoulSeek for tracks downloads, it requires a Spotify Playlist for search queries<br> (Sldl allows other means to do so, but it's currently unsupported with Nexody).<br>
 Relies on Spotify, ITunes and MusicBrainz for tag searching and autotagging.
-
+<br>
+<br>
 ### Configuration File Contains Several Variables that need to be modified in order to run the script properly.
 <br>
 <ins>Configuration File:</ins>
