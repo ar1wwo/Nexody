@@ -9,7 +9,7 @@ Relies on Spotify, ITunes and MusicBrainz for tag searching and autotagging.
 ### Configuration File Contains Several Variables that need to be modified in order to run the script properly.
 <br>
 <ins>Configuration File:</ins>
-
+<br>
 The Name of the Folder Where the Songs Will be Saved
 
 >LIBRARY_PATH = Library
@@ -31,7 +31,7 @@ SoulSeek User and Password
 >SOULSEEK_PASSWORD = dzk
 
 
-
+<br>
 This program is made possible thanks to these open source projects: [Sldl](https://github.com/fiso64/slsk-batchdl), [Yt-dlp](https://github.com/yt-dlp), [Ffmpeg](https://github.com/FFmpeg/FFmpeg).
 
 ### Binaries of Ffmpeg, Sldl and Yt-dlp are required and must be in the same folder as Nexody.
