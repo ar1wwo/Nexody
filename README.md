@@ -12,7 +12,7 @@ Relies on Spotify, ITunes and MusicBrainz for tag searches.
 <ins>Configuration File (nexody.cfg):</ins>
 <br>
 <br>
-The Name of the Folder Where the Songs Will be Saved
+The Location of the Folder Where the Songs Will be Saved
 
 >LIBRARY_PATH = 
 
