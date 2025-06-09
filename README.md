@@ -1,6 +1,6 @@
 # Nexody
 
-Nexody is a bash script tool meant to ease users into the creation of their own music library.<br>
+Nexody is a bash script tool meant to ease users into the creation of their own jellyfin music library.<br>
 It automatically tags and downloads tracks and provides a fallback for tracks that are less known.
 
 Relies on SoulSeek for tracks downloads, it requires a Spotify Playlist for search queries<br> (Sldl allows other means to do so, but it's currently unsupported with Nexody).<br>
