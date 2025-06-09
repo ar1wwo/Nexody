@@ -40,4 +40,4 @@ Nedoxy is made possible thanks to these open source projects: [Sldl](https://git
 ### Binaries of Ffmpeg and Sldl are required and must be in the same folder as Nexody.<br>
 ### Ffmpeg must be compiled with the following libraries: libfdk_aac, libmp3lame.
 
-To run, give the scripts permission and run nexody in bash
+To run, give the scripts permission and execute nexody in bash
