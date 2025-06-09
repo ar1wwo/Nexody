@@ -114,7 +114,7 @@ get-genres-musicbrainz() {
 
 	genres=$(./curl -f -s -A "MusicBrainzBot/1.0" \
 		"https://musicbrainz.org/ws/2/artist/$best_mbid?inc=genres&fmt=json" 2>/dev/null | \
-		./jq -r '[.genres | sort_by(-.count) | .[].name] | join(", ")') || {
+		./jq -r '[.genres | sort_by(-.count) | .[].name] | join(";")') || {
 		print "Error: Failed to fetch genres"
 		exit 1
 	}
@@ -124,66 +124,105 @@ get-genres-musicbrainz() {
 }
 
 get-genres-deezer() {
+    local max_retries=5
+    local retry_delay=2
 
-	print "Deezer"
-	sleep 1.5
-	print "Searching: $artist - $title"
+    print "Deezer"
+    print "Searching: $artist - $title"
 
-	encoded_url="https://api.deezer.com/search?q=artist:\"${artist// /%20}\"%20track:\"${title// /%20}\""
+    encoded_url="https://api.deezer.com/search?q=artist:\"${artist// /%20}\"%20track:\"${title// /%20}\""
 
-	# Send the request and capture the response
-	response=$(./curl -s "$encoded_url")
+    # Function to perform a retryable curl call and validate JSON,
+    # optionally check for an expected JSON key
+    retry_curl() {
+        local url="$1"
+        local expected_key="${2:-}"  # optional second argument, e.g. "data"
+        local attempt=1
+        local response
 
-	# Get the total number of results
-	count=$(echo "$response" | ./jq '.data | length')
-	[ "$count" -eq 0 ] && return 0
+        while (( attempt <= max_retries )); do
+            response=$(./curl -s "$url")
 
-	print "Found $count result(s):"
+            # DEBUG: uncomment next line to see raw response on each attempt
+            # echo "DEBUG: Attempt $attempt response: $response" >&2
 
-	# Loop through the results and format them
-	print
-	for ((i=0; i<count; i++)); do
-		# Always mark the first entry as 'BEST MATCH'
-		is_best=" "
-		if [ $i -eq 0 ]; then
-			is_best="→"
-		fi
-		
-		# Get the results using ./jq and inject the necessary variables
-		results=$(echo "$response" | ./jq -r --arg i "$i" --arg is_best "$is_best" '
-			.data[$i|tonumber] as $rec |
-			"\($is_best) [\($i|tonumber + 1)]\n" +
-			"  Title:  \($rec.title)\n" +
-			"  Artist: \($rec.artist.name)\n" +
-			"  Album:  \($rec.album.title)\n" +
-			"  ALID:   \($rec.album.id)\n"
-	')
-		
-		# Apply formatting based on whether it's the best match or not
-		if [ $i -eq 0 ]; then
-			print "$(tput bold)$results$(tput sgr0)"  # Best match in bold and green
-		else
-			print "$(tput setaf 8)$results$(tput sgr0)"  # Other results in gray
-		fi
-		print
-	done
+            # Check for valid JSON
+            if echo "$response" | ./jq empty >/dev/null 2>&1; then
+                # If expected_key is set, check for its presence
+                if [ -z "$expected_key" ] || echo "$response" | ./jq "has(\"$expected_key\")" | grep -q true; then
+                    echo "$response"
+                    return 0
+                fi
+            fi
 
-	# Extract the first album ID using ./jq and print it
-	album_id=$(echo "$response" | ./jq -r '.data[0].album.id')
+            # Check for rate limiting message
+            if echo "$response" | grep -qi "rate limit"; then
+                print "Rate limited by Deezer API, retrying in ${retry_delay}s (attempt $attempt/$max_retries)..."
+            else
+                print "Malformed or invalid JSON, retrying in ${retry_delay}s (attempt $attempt/$max_retries)..."
+            fi
 
-	# Print the album ID
-	print "Fetching genres for best match (ALID: $album_id)"
+            ((attempt++))
+            sleep $retry_delay
+        done
 
-	# Fetch album details using the album ID
-	album_details=$(./curl -s "https://api.deezer.com/album/$album_id")
+        return 1
+    }
 
-	# Extract genres from the album details
-	genres=$(echo "$album_details" | ./jq -r 'if .genres.data and (.genres.data | length > 0) then [.genres.data[].name] | join(", ") else "" end')
+    # Retryable search request, expect "data" key
+    response=$(retry_curl "$encoded_url" "data") || {
+        print "Failed to get valid search results from Deezer after $max_retries attempts."
+        return 0
+    }
+
+    count=$(echo "$response" | ./jq '.data | length')
+    [ "$count" -eq 0 ] && return 0
+
+    print "Found $count result(s):"
+    print
+
+    for ((i=0; i<count; i++)); do
+        is_best=" "
+        if [ $i -eq 0 ]; then
+            is_best="→"
+        fi
+
+        results=$(echo "$response" | ./jq -r --arg i "$i" --arg is_best "$is_best" '
+            .data[$i|tonumber] as $rec |
+            "\($is_best) [\($i|tonumber + 1)]\n" +
+            "  Title:  \($rec.title)\n" +
+            "  Artist: \($rec.artist.name)\n" +
+            "  Album:  \($rec.album.title)\n" +
+            "  ALID:   \($rec.album.id)\n"
+        ')
+
+        if [ $i -eq 0 ]; then
+            print "$(tput bold)$results$(tput sgr0)"
+        else
+            print "$(tput setaf 8)$results$(tput sgr0)"
+        fi
+        print
+    done
+
+    album_id=$(echo "$response" | ./jq -r '.data[0].album.id')
+
+    print "Fetching genres for best match (ALID: $album_id)"
+
+    album_url="https://api.deezer.com/album/$album_id"
+
+    # Retryable album details request, no expected key check (valid JSON only)
+    album_details=$(retry_curl "$album_url") || {
+        echo "DEBUG: Failed album details retrieval after $max_retries attempts. Last raw response:"
+        echo "$album_details"
+        print "Failed to get valid album details from Deezer after $max_retries attempts."
+        return 0
+    }
+
+    genres=$(echo "$album_details" | ./jq -r 'if .genres.data and (.genres.data | length > 0) then [.genres.data[].name] | join(";") else "" end')
 	[ -z "$genres" ] && return 0
 
-	# Print the genres
-	print "${genres,,}" -o
-	print ""
+    print "${genres,,}" -o
+    print ""
 }
 
 get-genres-itunes() {
@@ -304,7 +343,7 @@ get-genres-itunes() {
 	response=$(./curl -s "https://itunes.apple.com/lookup?id=${best_arid}")
 
 	# Extract the genres from the JSON response
-	genres=$(echo $response | ./jq -r '.results[0].primaryGenreName' | sed 's/\//, /')
+	genres=$(echo $response | ./jq -r '.results[0].primaryGenreName' | sed 's/\//;/')
 
 	# Print the genres
 	
